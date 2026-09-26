@@ -1,0 +1,85 @@
+{
+  "_comment": "Fictional example. Copy to profile.json and edit. profile.json is gitignored: it holds personal data and must never be committed.",
+
+  "roleFamilies": ["software engineering", "ai/ml", "platform"],
+
+  "seniority": {
+    "maxYears": 2,
+    "rejectTitles": [
+      "senior", "sr.", "staff", "principal", "distinguished", "fellow",
+      "lead", "manager", "director", "head of", "vp", "chief",
+      "intern", "internship", "co-op", "apprentice", "trainee", "architect"
+    ]
+  },
+
+  "geography": {
+    "include": ["US"],
+    "preferred": ["san francisco", "bay area", "palo alto", "mountain view"],
+    "secondary": ["new york", "seattle", "austin", "boston"]
+  },
+
+  "compensation": { "floorUSD": 100000 },
+
+  "exclude": {
+    "clearance": true,
+    "defensePrimes": true,
+    "staffingAgencies": true
+  },
+
+  "keywords": {
+    "strong": [
+      "backend", "full stack", "platform", "infrastructure", "distributed",
+      "ai", "llm", "agent", "machine learning", "data pipeline"
+    ],
+    "entry": [
+      "new grad", "graduate", "early career", "entry level",
+      "engineer i", "engineer 1", "associate", "junior"
+    ],
+    "negative": ["salesforce", "sharepoint", "mainframe"]
+  },
+
+  "skills": [
+    "Python", "TypeScript", "Go", "PostgreSQL", "Redis", "Docker",
+    "Kubernetes", "React", "FastAPI", "gRPC"
+  ],
+
+  "experience": [
+    {
+      "company": "Northwind Systems",
+      "role": "Software Engineer",
+      "start": "Jun 2024",
+      "end": "Present",
+      "bullets": [
+        "Built an event-ingestion service in Go handling 40k messages per second, replacing a batch job that ran four hours behind real time.",
+        "Designed an append-only PostgreSQL ledger as the source of truth for account balances, integrating consumption across three pipelines without disrupting billing or rate limiting.",
+        "Audited customer and billing flows to identify 20+ production defects including concurrent-write bugs and unauthenticated handlers; shipped fixes with regression coverage."
+      ]
+    },
+    {
+      "company": "Calder Labs",
+      "role": "Software Engineer Intern",
+      "start": "Jun 2023",
+      "end": "Aug 2023",
+      "bullets": [
+        "Implemented vector search over 12M documents with FAISS, cutting median retrieval latency from 800ms to 45ms.",
+        "Shipped a multi-stage ETL pipeline on Cloud Run with stateless workers and auto-scaling sized for 5x projected load."
+      ]
+    }
+  ],
+
+  "education": [
+    {
+      "institution": "Example State University",
+      "degree": "M.S. Computer Science",
+      "end": "May 2024",
+      "gpa": "3.9"
+    }
+  ],
+
+  "projects": [
+    {
+      "title": "Driftwood",
+      "detail": "Differential testing harness that runs identical workflows against two service versions in isolated containers and reports behavioural divergence. Python, Docker, PostgreSQL."
+    }
+  ]
+}
