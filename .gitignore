@@ -1,0 +1,36 @@
+# Personal profile data — NEVER commit. Contains address, phone, DOB,
+# work-authorization status. Only profile.example.json belongs in git.
+profile.json
+profile.*.json
+!profile.example.json
+
+# Run artifacts: shortlists name specific employers and roles, and the
+# application log records answers given to individual companies.
+shortlist.json
+shortlist.tsv
+seen.txt
+applied.txt
+runs/
+out/
+*.pdf
+
+# Corpus cache — 76MB of third-party data, re-fetched on demand
+.cache/
+data/corpus/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
