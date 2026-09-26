@@ -1,0 +1,43 @@
+name: market snapshot
+
+on:
+  schedule:
+    - cron: '17 11 * * *'      # 04:17 PT daily
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: pip install -e .
+
+      - name: Run the test suite
+        run: pip install pytest && python -m pytest tests/ -q
+
+      - name: Collect today's aggregate counts
+        run: reqstream stats --dir data/market
+
+      - name: Commit the snapshot
+        run: |
+          git config user.name  "Abheesht Roy"
+          git config user.email "abheeshtr11@gmail.com"
+          git add data/market
+          if git diff --cached --quiet; then
+            echo "no change today"
+            exit 0
+          fi
+          git commit -m "Market snapshot $(date -u +%F)
+
+          Aggregate counts only: total postings, software roles, distinct
+          employers, and per-ATS and per-seniority breakdowns. No posting
+          text or employer-identifying detail."
+          git push
