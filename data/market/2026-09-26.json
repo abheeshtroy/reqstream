@@ -1,21 +1,21 @@
 {
  "date": "2026-09-26",
- "total_postings": 1458032,
- "software_roles": 84447,
- "distinct_employers": 28922,
+ "total_postings": 1442967,
+ "software_roles": 83780,
+ "distinct_employers": 28861,
  "by_ats": {
-  "Workday": 629631,
-  "iCIMS": 256105,
-  "Greenhouse": 244890,
-  "Paylocity": 106134,
-  "Lever": 96620,
-  "BambooHR": 65832,
-  "Ashby": 58820
+  "Workday": 623837,
+  "iCIMS": 252589,
+  "Greenhouse": 242207,
+  "Paylocity": 105111,
+  "Lever": 95870,
+  "BambooHR": 65084,
+  "Ashby": 58269
  },
  "by_skill_level": {
-  "mid": 836058,
-  "senior": 401312,
-  "entry": 195920,
-  "intern": 24742
+  "mid": 827216,
+  "senior": 397188,
+  "entry": 193874,
+  "intern": 24689
  }
 }
