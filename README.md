@@ -69,19 +69,32 @@ importantly, makes every rejection auditable — each one is recorded with the
 rule that produced it.
 
 ```
-1,357,995  not a software role
-   44,824  title out of band (senior / staff / intern / manager)
-   17,683  staffing agency, no named end client
-   12,688  location unresolved
-   10,640  outside target geography
-      785  defense prime
-      707  posted compensation below floor
-      295  clearance or citizenship required
+1,350,777  not a software role
+   42,284  title out of band (senior / staff / intern / manager)
+   17,444  staffing agency, no named end client
+   12,932  outside target geography
+   10,574  location unresolved
+    2,593  seniority band above target
+    2,512  duplicate req id, different url
+    1,627  defense prime
+      321  clearance or citizenship required
 ```
 
-Three of those gates come free from the corpus schema: `is_recruiter` flags
-staffing agencies, `skill_level` gives a seniority band, and `salary.median`
-gives a compensation signal.
+Two of those gates come free from the corpus schema: `is_recruiter` flags
+staffing agencies and `skill_level` gives a seniority band.
+
+**Compensation is not gated.** The corpus `salary` field is the scraper's
+inference, sometimes from a sample of eight postings, not the employer's posted
+range. Excluding on it dropped roughly 700 roles per run on a guess, so it is
+scored in `rank/` instead, where being wrong costs a few points rather than the
+whole job.
+
+**Duplicates are caught by requisition id, not just URL.** The same job listed on
+a company board and on an aggregator has two URLs and one req id. `req_key()`
+extracts that id for Greenhouse, Lever, Ashby, Workday and SmartRecruiters, and
+returns `None` for anything it does not recognise rather than guessing, so two
+genuinely different jobs are never collapsed. It catches 2,512 duplicates a run
+that URL matching alone missed.
 
 ### Rank
 
