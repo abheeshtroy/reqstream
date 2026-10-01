@@ -32,22 +32,36 @@ CLEARANCE = re.compile(
     r"clearance|TS/SCI|polygraph|\bITAR\b|US citizen|U\.S\. citizen"
     r"|citizenship required|public trust", re.I)
 
+# Matched against the corpus `company` field, which is an ATS tenant slug and
+# not always the trading name. `globalhr` is RTX's tenant; without it every RTX
+# requisition reached the shortlist and was gated by hand.
 DEFENSE_PRIMES = re.compile(
-    r"^(raytheon|rtx|northrop|lockheed|l3harris|general dynamics|leidos|booz"
-    r"|caci|saic|mantech|peraton|sierra nevada|aerovironment|v2x|saalex"
-    r"|base-2|captivation|parsons|mitre|johns hopkins)", re.I)
+    r"^(raytheon|rtx|globalhr|northrop|lockheed|l3harris|general dynamics"
+    r"|leidos|booz|caci|saic|mantech|peraton|sierra nevada|aerovironment|v2x"
+    r"|saalex|base-2|captivation|parsons|mitre|johns hopkins|draper|aerospacecorp)",
+    re.I)
 
 # Country and city names that positively indicate a location outside the US.
+#
+# Indian metros are listed individually: the corpus frequently gives a bare city
+# with no country, so matching on "India" alone let Hyderabad, Bengaluru, Pune
+# and Chennai roles through to the shortlist, where they had to be removed by
+# hand on three separate runs. Same reasoning for the bare region names.
 NON_US = re.compile(
-    r"India|China|Canada|Toronto|Vancouver|Montreal|Ottawa|London|United Kingdom"
-    r"|Ireland|Dublin|Germany|Berlin|Munich|France|Paris|Netherlands|Amsterdam"
-    r"|Poland|Warsaw|Krakow|Spain|Madrid|Barcelona|Portugal|Lisbon|Brazil|Mexico"
-    r"|Japan|Tokyo|Singapore|Australia|Sydney|Melbourne|Israel|Tel Aviv"
-    r"|Philippines|Manila|Ukraine|Romania|Bulgaria|Czech|Prague|Sweden|Stockholm"
-    r"|Norway|Denmark|Copenhagen|Switzerland|Zurich|Korea|Seoul|Taiwan"
-    r"|Hong Kong|Vietnam|Indonesia|Thailand|Malaysia|Argentina|Colombia|Chile"
-    r"|Peru|Egypt|Nigeria|Kenya|South Africa|Turkey|Istanbul|Dubai|UAE|Saudi"
-    r"|Pakistan|Bangladesh|Sri Lanka|Nepal|Costa Rica|Uruguay|Bogota|EMEA|APAC",
+    r"India|Hyderabad|Bengaluru|Bangalore|Pune|Chennai|Mumbai|Delhi|Gurgaon"
+    r"|Gurugram|Noida|Kolkata|Ahmedabad|Jaipur|Kochi|Coimbatore|Trivandrum"
+    r"|Thiruvananthapuram|Indore|Chandigarh|Mysore|Mysuru"
+    r"|China|Shanghai|Beijing|Shenzhen|Canada|Toronto|Vancouver|Montreal|Ottawa"
+    r"|London|United Kingdom|\bUK\b|Ireland|Dublin|Germany|Berlin|Munich"
+    r"|France|Paris|Netherlands|Amsterdam|Poland|Warsaw|Krakow|Spain|Madrid"
+    r"|Barcelona|Portugal|Lisbon|Brazil|Mexico|Japan|Tokyo|Singapore"
+    r"|Australia|Sydney|Melbourne|Israel|Tel Aviv|Philippines|Manila|Ukraine"
+    r"|Romania|Bulgaria|Czech|Prague|Sweden|Stockholm|Norway|Denmark"
+    r"|Copenhagen|Switzerland|Zurich|Korea|Seoul|Taiwan|Hong Kong|Vietnam"
+    r"|Indonesia|Thailand|Malaysia|Argentina|Colombia|Chile|Peru|Egypt"
+    r"|Nigeria|Kenya|South Africa|Turkey|Istanbul|Dubai|UAE|Saudi|Pakistan"
+    r"|Bangladesh|Sri Lanka|Nepal|Costa Rica|Uruguay|Bogota"
+    r"|\bEurope\b|\bEMEA\b|\bAPAC\b|\bLATAM\b|Latin America",
     re.I)
 
 US_HINT = re.compile(
@@ -59,6 +73,37 @@ US_HINT = re.compile(
     r"|Sunnyvale|Redwood City|San Jose|Cambridge|Brooklyn|Remote", re.I)
 
 SENIOR_BANDS = {"senior", "lead", "principal", "executive"}
+
+# Requisition-id patterns per ATS. The same job listed on a company board and on
+# an aggregator has two different URLs and slips past URL dedupe; the req id is
+# the same in both. Observed twice in one run before this existed.
+# (family, pattern). The family label matters: an embedded Greenhouse widget and
+# a Greenhouse board URL carry the same requisition id in different shapes, so
+# both must key to "gh" or they never collapse.
+_REQ_PATTERNS = (
+    ("gh", re.compile(r"[?&]gh_jid=(\d+)", re.I)),
+    ("gh", re.compile(r"greenhouse\.io/(?:[^/]+/)*jobs/(\d+)", re.I)),
+    ("lever", re.compile(r"lever\.co/[^/]+/([0-9a-f-]{36})", re.I)),
+    ("ashby", re.compile(r"ashbyhq\.com/[^/]+/([0-9a-f-]{36})", re.I)),
+    ("wd", re.compile(r"myworkdayjobs\.com/.*?[_/](R-?\d{4,})", re.I)),
+    ("sr", re.compile(r"smartrecruiters\.com/[^/]+/(\d{6,})", re.I)),
+)
+
+
+def req_key(url: str):
+    """Return an ATS-stable requisition key for `url`, or None if unrecognised.
+
+    None means "no opinion" and the caller falls back to URL matching. It must
+    never collapse two genuinely different jobs, so an unmatched URL is left
+    alone rather than guessed at.
+    """
+    if not url:
+        return None
+    for family, pat in _REQ_PATTERNS:
+        m = pat.search(url)
+        if m:
+            return f"{family}:{m.group(1).lower()}"
+    return None
 
 DEFAULT_REJECT_TITLES = [
     "senior", "sr.", "staff", "principal", "distinguished", "fellow", "lead",
@@ -101,20 +146,26 @@ class Gate:
     def apply(self, records, seen_urls=None) -> GateReport:
         rep = GateReport()
         seen_urls = set(seen_urls or ())
-        seen_now = set()
+        seen_reqs = {k for k in (req_key(u) for u in seen_urls) if k}
+        seen_now, reqs_now = set(), set()
 
         for j in records:
             title = (j.get("title") or "").strip()
             loc = j.get("location") or ""
             url = j.get("url")
             company = j.get("company") or ""
+            rk = req_key(url)
 
             if not url or not title:
                 rep.reasons["record missing url or title"] += 1;      continue
             if url in seen_now:
                 rep.reasons["duplicate url"] += 1;                    continue
+            if rk and rk in reqs_now:
+                rep.reasons["duplicate req id, different url"] += 1;  continue
             if url in seen_urls:
                 rep.reasons["already seen"] += 1;                     continue
+            if rk and rk in seen_reqs:
+                rep.reasons["already seen, different url"] += 1;      continue
             if self.block_staffing and j.get("is_recruiter"):
                 rep.reasons["staffing agency, no named end client"] += 1; continue
             if not SOFTWARE_ROLE.search(title):
@@ -133,12 +184,16 @@ class Gate:
                 # Blank location survives: absence is not evidence.
                 if loc.strip() and not US_HINT.search(loc):
                     rep.reasons["location unresolved"] += 1;          continue
-            if self.floor is not None:
-                med = (j.get("salary") or {}).get("median")
-                if isinstance(med, (int, float)) and med < self.floor:
-                    rep.reasons["compensation below floor"] += 1;     continue
+            # Compensation is deliberately NOT gated here. The corpus `salary`
+            # field is the scraper's inference, sometimes from a sample of
+            # eight postings, not the employer's posted range. Excluding on it
+            # dropped roughly 700 roles a run on a guess. It is scored in
+            # rank.py instead, where being wrong costs a few points rather
+            # than the whole job.
 
             seen_now.add(url)
+            if rk:
+                reqs_now.add(rk)
             rep.kept.append(j)
 
         return rep
