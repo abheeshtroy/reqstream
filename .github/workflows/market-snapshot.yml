@@ -35,136 +35,123 @@ jobs:
           TODAY=$(date -u +%F)
           SNAP="data/market/${TODAY}.json"
 
-          # Nothing new → exit
           git add data/market
           if git diff --cached --quiet; then
             echo "no change today"
             exit 0
           fi
-          git reset  # unstage; we'll commit piece by piece
+          git reset
 
-          # --- Decide how many commits today (2-8) ---
-          # Hash the date so the count varies daily but is reproducible
           SEED=$(echo -n "$TODAY" | md5sum | tr -d -c '0-9' | head -c 8)
-          N=$(( (SEED % 7) + 2 ))   # range 2-8
+          N=$(( (SEED % 7) + 2 ))
           echo "Today's commit count: $N"
 
-          # --- Helper: make one commit with a message ---
           make_commit() {
             local msg="$1"
             git add data/market
             if git diff --cached --quiet; then
-              return 0   # nothing to commit this round
+              return 0
             fi
             git commit -m "$msg"
           }
 
-          # --- Split the snapshot JSON into pieces ---
-          # We break the single JSON into derived files, commit each separately,
-          # then commit whatever's left (the original snapshot) last.
-
           mkdir -p data/market/breakdowns
 
-          # Piece 1: ATS breakdown
           if [ "$N" -ge 2 ] && [ -f "$SNAP" ]; then
-            python3 -c "
-import json, sys
-with open('$SNAP') as f: d = json.load(f)
-out = {'date': d['date'], 'by_ats': d.get('by_ats', {})}
-with open('data/market/breakdowns/ats.json', 'w') as f:
-    json.dump(out, f, indent=1)
-"
+            python3 << PYEOF
+          import json
+          with open("$SNAP") as f:
+              d = json.load(f)
+          out = {"date": d["date"], "by_ats": d.get("by_ats", {})}
+          with open("data/market/breakdowns/ats.json", "w") as f:
+              json.dump(out, f, indent=1)
+          PYEOF
             make_commit "Update ATS distribution ${TODAY}"
           fi
 
-          # Piece 2: Seniority breakdown
           if [ "$N" -ge 3 ] && [ -f "$SNAP" ]; then
-            python3 -c "
-import json, sys
-with open('$SNAP') as f: d = json.load(f)
-out = {'date': d['date'], 'by_skill_level': d.get('by_skill_level', {})}
-with open('data/market/breakdowns/seniority.json', 'w') as f:
-    json.dump(out, f, indent=1)
-"
+            python3 << PYEOF
+          import json
+          with open("$SNAP") as f:
+              d = json.load(f)
+          out = {"date": d["date"], "by_skill_level": d.get("by_skill_level", {})}
+          with open("data/market/breakdowns/seniority.json", "w") as f:
+              json.dump(out, f, indent=1)
+          PYEOF
             make_commit "Update seniority breakdown ${TODAY}"
           fi
 
-          # Piece 3: Summary / latest pointer
           if [ "$N" -ge 4 ] && [ -f "$SNAP" ]; then
-            python3 -c "
-import json
-with open('$SNAP') as f: d = json.load(f)
-summary = {
-    'latest': d['date'],
-    'total_postings': d['total_postings'],
-    'software_roles': d['software_roles'],
-    'distinct_employers': d['distinct_employers']
-}
-with open('data/market/latest.json', 'w') as f:
-    json.dump(summary, f, indent=1)
-"
+            python3 << PYEOF
+          import json
+          with open("$SNAP") as f:
+              d = json.load(f)
+          summary = {
+              "latest": d["date"],
+              "total_postings": d["total_postings"],
+              "software_roles": d["software_roles"],
+              "distinct_employers": d["distinct_employers"]
+          }
+          with open("data/market/latest.json", "w") as f:
+              json.dump(summary, f, indent=1)
+          PYEOF
             make_commit "Refresh latest market summary"
           fi
 
-          # Piece 4: Append to trends CSV
           if [ "$N" -ge 5 ] && [ -f "$SNAP" ]; then
-            python3 -c "
-import json, os, csv
-with open('$SNAP') as f: d = json.load(f)
-csv_path = 'data/market/trends.csv'
-exists = os.path.exists(csv_path)
-with open(csv_path, 'a', newline='') as f:
-    w = csv.writer(f)
-    if not exists:
-        w.writerow(['date','total_postings','software_roles','distinct_employers'])
-    w.writerow([d['date'], d['total_postings'], d['software_roles'], d['distinct_employers']])
-"
+            python3 << PYEOF
+          import json, os, csv
+          with open("$SNAP") as f:
+              d = json.load(f)
+          csv_path = "data/market/trends.csv"
+          exists = os.path.exists(csv_path)
+          with open(csv_path, "a", newline="") as f:
+              w = csv.writer(f)
+              if not exists:
+                  w.writerow(["date","total_postings","software_roles","distinct_employers"])
+              w.writerow([d["date"], d["total_postings"], d["software_roles"], d["distinct_employers"]])
+          PYEOF
             make_commit "Append ${TODAY} to trends"
           fi
 
-          # Piece 5: Update coverage stats in breakdowns README
           if [ "$N" -ge 6 ] && [ -f "$SNAP" ]; then
-            python3 -c "
-import json
-with open('$SNAP') as f: d = json.load(f)
-lines = [
-    '# Market breakdowns',
-    '',
-    'Auto-generated derived data from daily snapshots.',
-    '',
-    f'**Last updated:** {d[\"date\"]}',
-    f'- {d[\"total_postings\"]:,} total postings',
-    f'- {d[\"software_roles\"]:,} software roles',
-    f'- {d[\"distinct_employers\"]:,} distinct employers',
-    ''
-]
-with open('data/market/breakdowns/README.md', 'w') as f:
-    f.write('\n'.join(lines))
-"
+            python3 << PYEOF
+          import json
+          with open("$SNAP") as f:
+              d = json.load(f)
+          lines = [
+              "# Market breakdowns",
+              "",
+              "Auto-generated derived data from daily snapshots.",
+              "",
+              "**Last updated:** " + d["date"],
+              "- {:,} total postings".format(d["total_postings"]),
+              "- {:,} software roles".format(d["software_roles"]),
+              "- {:,} distinct employers".format(d["distinct_employers"]),
+              ""
+          ]
+          with open("data/market/breakdowns/README.md", "w") as f:
+              f.write("\n".join(lines))
+          PYEOF
             make_commit "Update breakdowns README"
           fi
 
-          # Piece 6: Per-ATS historical append
           if [ "$N" -ge 7 ] && [ -f "$SNAP" ]; then
-            python3 -c "
-import json, os, csv
-with open('$SNAP') as f: d = json.load(f)
-csv_path = 'data/market/breakdowns/ats-history.csv'
-exists = os.path.exists(csv_path)
-with open(csv_path, 'a', newline='') as f:
-    w = csv.writer(f)
-    if not exists:
-        w.writerow(['date'] + list(d.get('by_ats', {}).keys()))
-    w.writerow([d['date']] + list(d.get('by_ats', {}).values()))
-"
+            python3 << PYEOF
+          import json, os, csv
+          with open("$SNAP") as f:
+              d = json.load(f)
+          csv_path = "data/market/breakdowns/ats-history.csv"
+          exists = os.path.exists(csv_path)
+          with open(csv_path, "a", newline="") as f:
+              w = csv.writer(f)
+              if not exists:
+                  w.writerow(["date"] + list(d.get("by_ats", {}).keys()))
+              w.writerow([d["date"]] + list(d.get("by_ats", {}).values()))
+          PYEOF
             make_commit "Append ATS history ${TODAY}"
           fi
 
-          # Final commit: the snapshot itself + anything remaining
-          make_commit "Market snapshot ${TODAY}
-
-          Aggregate counts only: total postings, software roles, distinct
-          employers, and per-ATS and per-seniority breakdowns. No posting
-          text or employer-identifying detail."
+          make_commit "Market snapshot ${TODAY}"
 
           git push
