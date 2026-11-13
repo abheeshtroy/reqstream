@@ -42,9 +42,7 @@ jobs:
           fi
           git reset
 
-          SEED=$(echo -n "$TODAY" | md5sum | tr -d -c '0-9' | head -c 8)
-          N=$(( (SEED % 7) + 2 ))
-          echo "Today's commit count: $N"
+          mkdir -p data/market/breakdowns
 
           make_commit() {
             local msg="$1"
@@ -55,103 +53,170 @@ jobs:
             git commit -m "$msg"
           }
 
-          mkdir -p data/market/breakdowns
+          python3 << 'PYEOF'
+          import hashlib, json, random, os, csv, sys
 
-          if [ "$N" -ge 2 ] && [ -f "$SNAP" ]; then
-            python3 << PYEOF
-          import json
-          with open("$SNAP") as f:
-              d = json.load(f)
-          out = {"date": d["date"], "by_ats": d.get("by_ats", {})}
-          with open("data/market/breakdowns/ats.json", "w") as f:
-              json.dump(out, f, indent=1)
-          PYEOF
-            make_commit "Update ATS distribution ${TODAY}"
-          fi
+          today = os.environ["TODAY"]
+          snap_path = os.environ["SNAP"]
 
-          if [ "$N" -ge 3 ] && [ -f "$SNAP" ]; then
-            python3 << PYEOF
-          import json
-          with open("$SNAP") as f:
-              d = json.load(f)
-          out = {"date": d["date"], "by_skill_level": d.get("by_skill_level", {})}
-          with open("data/market/breakdowns/seniority.json", "w") as f:
-              json.dump(out, f, indent=1)
-          PYEOF
-            make_commit "Update seniority breakdown ${TODAY}"
-          fi
+          if not os.path.isfile(snap_path):
+              print("no snapshot file")
+              sys.exit(0)
 
-          if [ "$N" -ge 4 ] && [ -f "$SNAP" ]; then
-            python3 << PYEOF
-          import json
-          with open("$SNAP") as f:
+          with open(snap_path) as f:
               d = json.load(f)
-          summary = {
-              "latest": d["date"],
-              "total_postings": d["total_postings"],
-              "software_roles": d["software_roles"],
-              "distinct_employers": d["distinct_employers"]
-          }
-          with open("data/market/latest.json", "w") as f:
-              json.dump(summary, f, indent=1)
-          PYEOF
-            make_commit "Refresh latest market summary"
-          fi
 
-          if [ "$N" -ge 5 ] && [ -f "$SNAP" ]; then
-            python3 << PYEOF
-          import json, os, csv
-          with open("$SNAP") as f:
-              d = json.load(f)
-          csv_path = "data/market/trends.csv"
-          exists = os.path.exists(csv_path)
-          with open(csv_path, "a", newline="") as f:
-              w = csv.writer(f)
-              if not exists:
-                  w.writerow(["date","total_postings","software_roles","distinct_employers"])
-              w.writerow([d["date"], d["total_postings"], d["software_roles"], d["distinct_employers"]])
-          PYEOF
-            make_commit "Append ${TODAY} to trends"
-          fi
+          seed = int(hashlib.sha256(today.encode()).hexdigest(), 16)
+          rng = random.Random(seed)
+          n = rng.randint(2, 10)
 
-          if [ "$N" -ge 6 ] && [ -f "$SNAP" ]; then
-            python3 << PYEOF
-          import json
-          with open("$SNAP") as f:
-              d = json.load(f)
-          lines = [
-              "# Market breakdowns",
-              "",
-              "Auto-generated derived data from daily snapshots.",
-              "",
-              "**Last updated:** " + d["date"],
-              "- {:,} total postings".format(d["total_postings"]),
-              "- {:,} software roles".format(d["software_roles"]),
-              "- {:,} distinct employers".format(d["distinct_employers"]),
-              ""
+          tasks = []
+
+          def task_ats():
+              out = {"date": d["date"], "by_ats": d.get("by_ats", {})}
+              with open("data/market/breakdowns/ats.json", "w") as f:
+                  json.dump(out, f, indent=1)
+
+          def task_seniority():
+              out = {"date": d["date"], "by_skill_level": d.get("by_skill_level", {})}
+              with open("data/market/breakdowns/seniority.json", "w") as f:
+                  json.dump(out, f, indent=1)
+
+          def task_latest():
+              summary = {
+                  "latest": d["date"],
+                  "total_postings": d["total_postings"],
+                  "software_roles": d["software_roles"],
+                  "distinct_employers": d["distinct_employers"]
+              }
+              with open("data/market/latest.json", "w") as f:
+                  json.dump(summary, f, indent=1)
+
+          def task_trends():
+              csv_path = "data/market/trends.csv"
+              exists = os.path.exists(csv_path)
+              with open(csv_path, "a", newline="") as f:
+                  w = csv.writer(f)
+                  if not exists:
+                      w.writerow(["date","total_postings","software_roles","distinct_employers"])
+                  w.writerow([d["date"], d["total_postings"], d["software_roles"], d["distinct_employers"]])
+
+          def task_readme():
+              lines = [
+                  "# Market breakdowns", "",
+                  "Auto-generated derived data from daily snapshots.", "",
+                  "**Last updated:** " + d["date"],
+                  "- {:,} total postings".format(d["total_postings"]),
+                  "- {:,} software roles".format(d["software_roles"]),
+                  "- {:,} distinct employers".format(d["distinct_employers"]), ""
+              ]
+              with open("data/market/breakdowns/README.md", "w") as f:
+                  f.write("\n".join(lines))
+
+          def task_ats_history():
+              csv_path = "data/market/breakdowns/ats-history.csv"
+              exists = os.path.exists(csv_path)
+              with open(csv_path, "a", newline="") as f:
+                  w = csv.writer(f)
+                  if not exists:
+                      w.writerow(["date"] + list(d.get("by_ats", {}).keys()))
+                  w.writerow([d["date"]] + list(d.get("by_ats", {}).values()))
+
+          def task_top_employers():
+              ats = d.get("by_ats", {})
+              top = dict(sorted(ats.items(), key=lambda x: x[1], reverse=True)[:10])
+              out = {"date": d["date"], "top_employers": top}
+              with open("data/market/breakdowns/top-ats.json", "w") as f:
+                  json.dump(out, f, indent=1)
+
+          def task_sw_ratio():
+              total = d.get("total_postings", 1)
+              sw = d.get("software_roles", 0)
+              out = {"date": d["date"], "software_pct": round(sw / total * 100, 2), "other_pct": round((total - sw) / total * 100, 2)}
+              with open("data/market/breakdowns/sw-ratio.json", "w") as f:
+                  json.dump(out, f, indent=1)
+
+          def task_seniority_history():
+              csv_path = "data/market/breakdowns/seniority-history.csv"
+              exists = os.path.exists(csv_path)
+              by_level = d.get("by_skill_level", {})
+              with open(csv_path, "a", newline="") as f:
+                  w = csv.writer(f)
+                  if not exists:
+                      w.writerow(["date"] + list(by_level.keys()))
+                  w.writerow([d["date"]] + list(by_level.values()))
+
+          def task_daily_delta():
+              import glob
+              snaps = sorted(glob.glob("data/market/2*.json"))
+              if len(snaps) >= 2:
+                  with open(snaps[-2]) as f:
+                      prev = json.load(f)
+                  delta = {
+                      "date": d["date"],
+                      "prev_date": prev["date"],
+                      "postings_delta": d["total_postings"] - prev["total_postings"],
+                      "sw_delta": d["software_roles"] - prev["software_roles"],
+                      "employer_delta": d["distinct_employers"] - prev["distinct_employers"]
+                  }
+                  with open("data/market/breakdowns/daily-delta.json", "w") as f:
+                      json.dump(delta, f, indent=1)
+
+          def task_employer_density():
+              total = d.get("total_postings", 1)
+              emp = d.get("distinct_employers", 1)
+              out = {"date": d["date"], "postings_per_employer": round(total / emp, 2)}
+              with open("data/market/breakdowns/density.json", "w") as f:
+                  json.dump(out, f, indent=1)
+
+          all_tasks = [
+              ("ats", task_ats),
+              ("seniority", task_seniority),
+              ("latest", task_latest),
+              ("trends", task_trends),
+              ("readme", task_readme),
+              ("ats_history", task_ats_history),
+              ("top_employers", task_top_employers),
+              ("sw_ratio", task_sw_ratio),
+              ("seniority_history", task_seniority_history),
+              ("daily_delta", task_daily_delta),
+              ("employer_density", task_employer_density),
           ]
-          with open("data/market/breakdowns/README.md", "w") as f:
-              f.write("\n".join(lines))
-          PYEOF
-            make_commit "Update breakdowns README"
-          fi
 
-          if [ "$N" -ge 7 ] && [ -f "$SNAP" ]; then
-            python3 << PYEOF
-          import json, os, csv
-          with open("$SNAP") as f:
-              d = json.load(f)
-          csv_path = "data/market/breakdowns/ats-history.csv"
-          exists = os.path.exists(csv_path)
-          with open(csv_path, "a", newline="") as f:
-              w = csv.writer(f)
-              if not exists:
-                  w.writerow(["date"] + list(d.get("by_ats", {}).keys()))
-              w.writerow([d["date"]] + list(d.get("by_ats", {}).values()))
+          rng.shuffle(all_tasks)
+          picked = all_tasks[:n - 1]
+
+          for name, fn in picked:
+              fn()
+              marker = "data/market/breakdowns/.done-" + name
+              with open(marker, "w") as f:
+                  f.write(today)
+              print(f"TASK:{name}")
+
+          print(f"N:{n}")
           PYEOF
-            make_commit "Append ATS history ${TODAY}"
-          fi
+
+          TASK_MSGS_ats="Update ATS distribution ${TODAY}"
+          TASK_MSGS_seniority="Update seniority breakdown ${TODAY}"
+          TASK_MSGS_latest="Refresh latest market summary"
+          TASK_MSGS_trends="Append ${TODAY} to trends"
+          TASK_MSGS_readme="Update breakdowns README"
+          TASK_MSGS_ats_history="Append ATS history ${TODAY}"
+          TASK_MSGS_top_employers="Update top ATS rankings"
+          TASK_MSGS_sw_ratio="Update software role ratio"
+          TASK_MSGS_seniority_history="Append seniority history ${TODAY}"
+          TASK_MSGS_daily_delta="Compute daily posting delta"
+          TASK_MSGS_employer_density="Update employer density metric"
 
           make_commit "Market snapshot ${TODAY}"
+
+          for marker in data/market/breakdowns/.done-*; do
+            [ -f "$marker" ] || continue
+            task_name=$(basename "$marker" | sed 's/^\.done-//')
+            var="TASK_MSGS_${task_name}"
+            msg="${!var:-Update ${task_name} ${TODAY}}"
+            rm "$marker"
+            make_commit "$msg"
+          done
 
           git push
