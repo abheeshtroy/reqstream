@@ -32,8 +32,8 @@ jobs:
           git config user.name  "Abheesht Roy"
           git config user.email "abheeshtr11@gmail.com"
 
-          TODAY=$(date -u +%F)
-          SNAP="data/market/${TODAY}.json"
+          export TODAY=$(date -u +%F)
+          export SNAP="data/market/${TODAY}.json"
 
           git add data/market
           if git diff --cached --quiet; then
