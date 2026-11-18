@@ -2,7 +2,7 @@
 
 Auto-generated derived data from daily snapshots.
 
-**Last updated:** 2026-11-11
-- 1,429,355 total postings
-- 79,196 software roles
-- 28,291 distinct employers
+**Last updated:** 2026-11-18
+- 1,411,622 total postings
+- 77,759 software roles
+- 40,197 distinct employers
