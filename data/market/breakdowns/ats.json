@@ -1,13 +1,13 @@
 {
- "date": "2026-11-17",
+ "date": "2026-11-19",
  "by_ats": {
-  "Workday": 582536,
-  "iCIMS": 246454,
-  "Greenhouse": 236239,
-  "Paylocity": 101789,
-  "Lever": 91365,
-  "BambooHR": 61604,
-  "Ashby": 59172,
-  "Join": 35198
+  "Workday": 560227,
+  "iCIMS": 249833,
+  "Greenhouse": 238427,
+  "Paylocity": 102347,
+  "Lever": 92032,
+  "BambooHR": 61860,
+  "Ashby": 59574,
+  "Join": 36005
  }
 }
