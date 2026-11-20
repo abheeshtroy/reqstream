@@ -1,0 +1,22 @@
+{
+ "date": "2026-11-20",
+ "total_postings": 1390954,
+ "software_roles": 76836,
+ "distinct_employers": 40525,
+ "by_ats": {
+  "Workday": 550872,
+  "iCIMS": 249330,
+  "Greenhouse": 238316,
+  "Paylocity": 102065,
+  "Lever": 92740,
+  "BambooHR": 61200,
+  "Ashby": 59524,
+  "Join": 36907
+ },
+ "by_skill_level": {
+  "mid": 799723,
+  "senior": 377923,
+  "entry": 188591,
+  "intern": 24717
+ }
+}
